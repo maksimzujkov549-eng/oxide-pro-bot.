@@ -1,0 +1,79 @@
+import os
+from telegram import LabeledPrice, Update
+from telegram.ext import (
+    Application, CommandHandler, MessageHandler,
+    PreCheckoutQueryHandler, ContextTypes, filters
+)
+
+TOKEN = os.getenv("BOT_TOKEN")
+ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
+APK_FILE_ID = os.getenv("APK_FILE_ID", "")
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "🔥 OXIDE PRO BOT\n\n"
+        "Покупка софта — 100 ⭐",
+        reply_markup=None
+    )
+    await update.message.reply_text("Нажми /buy для покупки.")
+
+async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await context.bot.send_invoice(
+        chat_id=update.effective_chat.id,
+        title="OXIDE PRO",
+        description="Покупка APK-файла",
+        payload="oxide_apk_100",
+        provider_token="",
+        currency="XTR",
+        prices=[LabeledPrice("OXIDE PRO APK", 100)]
+    )
+
+async def precheckout(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.pre_checkout_query.answer(ok=True)
+
+async def paid(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.successful_payment:
+        if APK_FILE_ID:
+            await update.message.reply_document(
+                document=APK_FILE_ID,
+                caption="✅ Оплата получена! Спасибо за покупку OXIDE PRO."
+            )
+        else:
+            await update.message.reply_text(
+                "Оплата получена. Напиши /paysupport для получения помощи."
+            )
+
+async def setapk(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+    await update.message.reply_text(
+        "Пришли APK-файл отдельным сообщением."
+    )
+
+async def receive_apk(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+    if update.message.document:
+        file_id = update.message.document.file_id
+        await update.message.reply_text(
+            "Скопируй этот file_id в переменную APK_FILE_ID на Railway:\n"
+            + file_id
+        )
+
+async def support(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Поддержка: напиши администратору бота.")
+
+async def main():
+    app = Application.builder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("buy", buy))
+    app.add_handler(CommandHandler("setapk", setapk))
+    app.add_handler(CommandHandler("paysupport", support))
+    app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, paid))
+    app.add_handler(PreCheckoutQueryHandler(precheckout))
+    app.add_handler(MessageHandler(filters.Document.ALL, receive_apk))
+    await app.run_polling()
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())
